@@ -82,6 +82,8 @@ impl App {
         create_swapchain_image_views(&device, &mut data)?;
         create_render_pass(&instance, &device, &mut data)?;
         create_pipeline(&device, &mut data)?;
+        create_framebuffers(&device, &mut data)?;
+
         Ok(Self {
             entry,
             instance,
@@ -95,6 +97,10 @@ impl App {
     }
 
     unsafe fn destroy(&mut self) {
+        self.data
+            .framebuffers
+            .iter()
+            .for_each(|f| self.device.destroy_framebuffer(*f, VK_ALLOCATOR));
         self.device
             .destroy_pipeline(self.data.pipeline, VK_ALLOCATOR);
         self.device
@@ -135,6 +141,7 @@ struct AppData {
     render_pass: vk::RenderPass,
     pipeline_layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
+    framebuffers: Vec<vk::Framebuffer>,
 }
 
 //================================================
@@ -601,6 +608,30 @@ unsafe fn create_shader_module(device: &Device, bytecode: &[u8]) -> Result<vk::S
         .code(code);
 
     Ok(device.create_shader_module(&info, VK_ALLOCATOR)?)
+}
+
+//================================================
+// Framebuffers
+//================================================
+
+unsafe fn create_framebuffers(device: &Device, data: &mut AppData) -> Result<()> {
+    data.framebuffers = data
+        .swapchain_image_views
+        .iter()
+        .map(|i| {
+            let attachments = &[*i];
+            let create_info = vk::FramebufferCreateInfo::builder()
+                .render_pass(data.render_pass)
+                .attachments(attachments)
+                .width(data.swapchain_extent.width)
+                .height(data.swapchain_extent.height)
+                .layers(1);
+
+            device.create_framebuffer(&create_info, VK_ALLOCATOR)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(())
 }
 
 //================================================
